@@ -14,7 +14,7 @@ func TestHeader(t *testing.T) {
 	n, done, err := headers.Parse(data)
 	require.NoError(t, err)
 	require.NotNil(t, headers)
-	assert.Equal(t, "localhost:42069", headers["Host"])
+	assert.Equal(t, "localhost:42069", headers["host"])
 	assert.Equal(t, 23, n)
 	assert.False(t, done)
 
@@ -30,7 +30,7 @@ func TestHeader(t *testing.T) {
 	headers = NewHeaders()
 	data = []byte("       Host: localhost:42069       \r\n\r\n")
 	n, done, err = headers.Parse(data)
-	assert.Equal(t, "localhost:42069", headers["Host"])
+	assert.Equal(t, "localhost:42069", headers["host"])
 	require.NoError(t, err)
 	assert.Equal(t, 37, n)
 	assert.False(t, done)
@@ -50,7 +50,7 @@ func TestParse_ValidSingleHeader(t *testing.T) {
 	require.NoError(t, err)
 	assert.False(t, done)
 	assert.Equal(t, 23, n)
-	assert.Equal(t, "localhost:42069", h["Host"])
+	assert.Equal(t, "localhost:42069", h["host"])
 }
 
 func TestParse_ValidSingleHeaderExtraWhitespace(t *testing.T) {
@@ -58,7 +58,7 @@ func TestParse_ValidSingleHeaderExtraWhitespace(t *testing.T) {
 	n, done, err := h.Parse([]byte("     Host:      localhost:42069     \r\n"))
 	require.NoError(t, err)
 	assert.False(t, done)
-	assert.Equal(t, "localhost:42069", h["Host"])
+	assert.Equal(t, "localhost:42069", h["host"])
 	assert.Equal(t, len("     Host:      localhost:42069     \r\n"), n)
 }
 
@@ -100,25 +100,25 @@ func TestParse_ValidMultipleCalls(t *testing.T) {
 	n1, done1, err1 := h.Parse([]byte("Host: localhost\r\n"))
 	require.NoError(t, err1)
 	assert.False(t, done1)
-	assert.Equal(t, "localhost", h["Host"])
+	assert.Equal(t, "localhost", h["host"])
 	assert.Equal(t, len("Host: localhost\r\n"), n1)
 
 	// Second header
 	n2, done2, err2 := h.Parse([]byte("User-Agent: boots\r\n"))
 	require.NoError(t, err2)
 	assert.False(t, done2)
-	assert.Equal(t, "boots", h["User-Agent"])
+	assert.Equal(t, "boots", h["user-agent"])
 	assert.Equal(t, len("User-Agent: boots\r\n"), n2)
 }
 
 func TestParse_ValidWithExistingHeaders(t *testing.T) {
 	h := NewHeaders()
-	h["Existing"] = "keep"
+	h["existing"] = "keep"
 	n, done, err := h.Parse([]byte("Content-Type: text/plain\r\n"))
 	require.NoError(t, err)
 	assert.False(t, done)
-	assert.Equal(t, "keep", h["Existing"])
-	assert.Equal(t, "text/plain", h["Content-Type"])
+	assert.Equal(t, "keep", h["existing"])
+	assert.Equal(t, "text/plain", h["content-type"])
 	assert.Equal(t, len("Content-Type: text/plain\r\n"), n)
 }
 
@@ -135,7 +135,7 @@ func TestParse_TrimValueManySpaces(t *testing.T) {
 	n, done, err := h.Parse([]byte("Accept:        text/html      \r\n"))
 	require.NoError(t, err)
 	assert.False(t, done)
-	assert.Equal(t, "text/html", h["Accept"])
+	assert.Equal(t, "text/html", h["accept"])
 	assert.Equal(t, len("Accept:        text/html      \r\n"), n)
 }
 
@@ -152,6 +152,14 @@ func TestParse_FieldNameTrimOuterButNoInnerSpaces(t *testing.T) {
 	n, done, err := h.Parse([]byte("   X-Key: value   \r\n"))
 	require.NoError(t, err)
 	assert.False(t, done)
-	assert.Equal(t, "value", h["X-Key"])
+	assert.Equal(t, "value", h["x-key"])
 	assert.Equal(t, len("   X-Key: value   \r\n"), n)
+}
+
+func TestParse_InvalidCharacter(t *testing.T) {
+	h := NewHeaders()
+	n, done, err := h.Parse([]byte("H©st: localhost:42069\r\n\r\n"))
+	require.Error(t, err)
+	assert.False(t, done)
+	assert.Equal(t, 0, n)
 }
