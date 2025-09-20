@@ -53,6 +53,27 @@ func TestParse_ValidSingleHeader(t *testing.T) {
 	assert.Equal(t, "localhost:42069", h["host"])
 }
 
+func TestParse_MultipleSameHeader(t *testing.T) {
+	h := NewHeaders()
+	n, done, err := h.Parse([]byte("Set-Person: Person1\r\n"))
+	require.NoError(t, err)
+	assert.False(t, done)
+	assert.Equal(t, 21, n)
+	assert.Equal(t, "Person1", h["set-person"])
+
+	n, done, err = h.Parse([]byte("Set-Person: Person2\r\n"))
+	require.NoError(t, err)
+	assert.False(t, done)
+	assert.Equal(t, 21, n)
+	assert.Equal(t, "Person1, Person2", h["set-person"])
+
+	n, done, err = h.Parse([]byte("Set-Person: Person3\r\n"))
+	require.NoError(t, err)
+	assert.False(t, done)
+	assert.Equal(t, 21, n)
+	assert.Equal(t, "Person1, Person2, Person3", h["set-person"])
+}
+
 func TestParse_ValidSingleHeaderExtraWhitespace(t *testing.T) {
 	h := NewHeaders()
 	n, done, err := h.Parse([]byte("     Host:      localhost:42069     \r\n"))

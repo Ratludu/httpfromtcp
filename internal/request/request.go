@@ -3,6 +3,7 @@ package request
 import (
 	"bytes"
 	"fmt"
+	"github.com/ratludu/httpfromtcp/internal/headers"
 	"io"
 	"strings"
 	"unicode"
@@ -15,6 +16,7 @@ const bufferSize = 8
 const (
 	initialized state = iota
 	done
+	requestStateParsingHeaders
 )
 
 type state int
@@ -22,6 +24,7 @@ type state int
 type Request struct {
 	RequestLine RequestLine
 	State       state
+	Headers     headers.Headers
 }
 
 type RequestLine struct {
@@ -32,7 +35,8 @@ type RequestLine struct {
 
 func newRequest() *Request {
 	return &Request{
-		State: initialized,
+		State:   initialized,
+		Headers: headers.NewHeaders(),
 	}
 }
 
@@ -61,6 +65,9 @@ func RequestFromReader(reader io.Reader) (*Request, error) {
 		readToIndex -= readN
 
 		if err == io.EOF {
+			if request.State != done {
+				return nil, fmt.Errorf("incomplete request at EOF")
+			}
 			if readN == 0 {
 				break
 			}
@@ -78,7 +85,7 @@ func RequestFromReader(reader io.Reader) (*Request, error) {
 	return request, nil
 }
 
-func (r *Request) parse(data []byte) (int, error) {
+func (r *Request) parseSingle(data []byte) (int, error) {
 	switch r.State {
 	case initialized:
 		n, rl, err := parseRequestLine(data)
@@ -89,13 +96,41 @@ func (r *Request) parse(data []byte) (int, error) {
 			return 0, nil
 		}
 		r.RequestLine = *rl
-		r.State = done
+		r.State = requestStateParsingHeaders
 		return n, nil
 	case done:
 		return 0, fmt.Errorf("parser is done")
+	case requestStateParsingHeaders:
+		n, isDone, err := r.Headers.Parse(data)
+		if err != nil {
+			return 0, err
+		}
+
+		if isDone {
+			r.State = done
+		}
+
+		return n, nil
+
 	default:
 		return 0, fmt.Errorf("unknown state")
 	}
+}
+func (r *Request) parse(data []byte) (int, error) {
+
+	totalBytesParsed := 0
+	for r.State != done {
+		n, err := r.parseSingle(data[totalBytesParsed:])
+		if err != nil {
+			return 0, err
+		}
+		if n == 0 {
+			return totalBytesParsed, nil
+		}
+		totalBytesParsed += n
+	}
+
+	return totalBytesParsed, nil
 }
 
 func parseRequestLine(requestLine []byte) (int, *RequestLine, error) {

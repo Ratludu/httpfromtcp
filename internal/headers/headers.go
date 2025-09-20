@@ -50,7 +50,11 @@ func (h Headers) Parse(data []byte) (n int, done bool, err error) {
 
 	key := bytes.ToLower(splitHeader[0])
 
-	h[string(key)] = string(cleanSplitValue)
+	if v, ok := h[string(key)]; ok {
+		h[string(key)] = fmt.Sprintf("%s, %s", v, string(cleanSplitValue))
+	} else {
+		h[string(key)] = string(cleanSplitValue)
+	}
 
 	return idx + len(crlf), false, nil
 }
