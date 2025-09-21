@@ -4,17 +4,36 @@ import (
 	"bytes"
 	"fmt"
 	"slices"
+	"strconv"
+	"strings"
 	"unicode"
 )
 
 const crlf = "\r\n"
 
 var SpecialCharacters = []string{"!", "#", "$", "%", "&", "'", "*", "+", "-", ".", "^", "_", "`", "|", "~"}
+var ErrKeyNotFound = fmt.Errorf("Error: key not found in header")
+var ErrConversionFailed = fmt.Errorf("Error: converting failed")
 
 type Headers map[string]string
 
 func NewHeaders() Headers {
 	return Headers{}
+}
+
+func (h Headers) Get(key string) (int, error) {
+
+	val, ok := h[strings.ToLower(key)]
+	if !ok {
+		return 0, ErrKeyNotFound
+	}
+
+	intVal, err := strconv.Atoi(val)
+	if err != nil {
+		return 0, ErrConversionFailed
+	}
+
+	return intVal, nil
 }
 
 func (h Headers) Parse(data []byte) (n int, done bool, err error) {
@@ -25,7 +44,7 @@ func (h Headers) Parse(data []byte) (n int, done bool, err error) {
 	}
 
 	if idx == 0 {
-		return 0, true, nil
+		return len(crlf), true, nil
 	}
 
 	cleanedHeader := bytes.Trim(data[:idx], " ")

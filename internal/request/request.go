@@ -3,10 +3,11 @@ package request
 import (
 	"bytes"
 	"fmt"
-	"github.com/ratludu/httpfromtcp/internal/headers"
 	"io"
 	"strings"
 	"unicode"
+
+	"github.com/ratludu/httpfromtcp/internal/headers"
 )
 
 const crlf = "\r\n"
@@ -17,6 +18,7 @@ const (
 	initialized state = iota
 	done
 	requestStateParsingHeaders
+	requestStateParsingBody
 )
 
 type state int
@@ -25,6 +27,7 @@ type Request struct {
 	RequestLine RequestLine
 	State       state
 	Headers     headers.Headers
+	Body        []byte
 }
 
 type RequestLine struct {
@@ -107,10 +110,34 @@ func (r *Request) parseSingle(data []byte) (int, error) {
 		}
 
 		if isDone {
-			r.State = done
+			r.State = requestStateParsingBody
 		}
 
 		return n, nil
+	case requestStateParsingBody:
+
+		val, err := r.Headers.Get("content-length")
+		if err != nil {
+			r.State = done
+			return len(data), nil
+		}
+
+		remaining := val - len(r.Body)
+		if remaining < 0 {
+			r.State = done
+			return 0, nil
+		}
+		consumed := min(remaining, len(data))
+		r.Body = append(r.Body, data[:consumed]...)
+		if len(r.Body) > val {
+			return consumed, fmt.Errorf("Error: body is longer than content-length, body: %d, content-length: %d", len(r.Body), val)
+		}
+		if len(r.Body) == val {
+			r.State = done
+			return consumed, nil
+		}
+
+		return consumed, nil
 
 	default:
 		return 0, fmt.Errorf("unknown state")

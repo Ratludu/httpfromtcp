@@ -26,7 +26,6 @@ func main() {
 	for {
 		fmt.Print("> ")
 		line, err := reader.ReadString('\n')
-		fmt.Println()
 		if err != nil {
 			log.Println(err)
 			break

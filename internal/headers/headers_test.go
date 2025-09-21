@@ -40,7 +40,7 @@ func TestHeader(t *testing.T) {
 	data = []byte("\r\n\r\n")
 	n, done, err = headers.Parse(data)
 	require.NoError(t, err)
-	assert.Equal(t, 0, n)
+	assert.Equal(t, 2, n)
 	assert.True(t, done)
 }
 
@@ -148,7 +148,7 @@ func TestParse_DoneWhenBlankLine(t *testing.T) {
 	n, done, err := h.Parse([]byte("\r\n"))
 	require.NoError(t, err)
 	assert.True(t, done)
-	assert.Equal(t, 0, n) // consume none per spec for done-at-start
+	assert.Equal(t, 2, n) // consume none per spec for done-at-start
 }
 
 func TestParse_TrimValueManySpaces(t *testing.T) {
