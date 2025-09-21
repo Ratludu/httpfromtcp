@@ -2,6 +2,7 @@ package server
 
 import (
 	"fmt"
+	"github.com/ratludu/httpfromtcp/internal/response"
 	"net"
 	"sync/atomic"
 )
@@ -63,12 +64,8 @@ func (s *Server) listen() {
 func (s *Server) handle(conn net.Conn) {
 
 	defer conn.Close()
-	message := "HTTP/1.1 200 OK\r\n" +
-		"Content-Type: text/plain\r\n" +
-		"Content-Length: 13\r\n" +
-		"\r\n" +
-		"Hello World!\n"
-	_, err := conn.Write([]byte(message))
+	defaultHeaders := response.GetDefaultHeaders(0)
+	err := response.WriteHeaders(conn, defaultHeaders)
 	if err != nil {
 		fmt.Println("Error:", err)
 		return
