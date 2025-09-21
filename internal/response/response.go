@@ -8,15 +8,15 @@ import (
 	"github.com/ratludu/httpfromtcp/internal/headers"
 )
 
-type statusCode int
+type StatusCode int
 
 const (
-	Ok statusCode = iota
+	Ok StatusCode = iota
 	BadRequest
 	InternalServerError
 )
 
-func (s statusCode) GetCode() int {
+func (s StatusCode) GetCode() int {
 
 	switch s {
 	case Ok:
@@ -28,7 +28,7 @@ func (s statusCode) GetCode() int {
 	}
 }
 
-func (s statusCode) GetMessage() string {
+func (s StatusCode) GetMessage() string {
 
 	switch s {
 	case Ok:
@@ -41,7 +41,7 @@ func (s statusCode) GetMessage() string {
 
 }
 
-func (s statusCode) CreateHTTPMessage() string {
+func (s StatusCode) CreateHTTPMessage() string {
 	return fmt.Sprintf("HTTP/1.1 %d %s", s.GetCode(), s.GetMessage())
 }
 
@@ -56,9 +56,8 @@ func GetDefaultHeaders(contentLen int) headers.Headers {
 	return header
 }
 
-func WriteHeaders(w io.Writer, headers headers.Headers) error {
-	status := Ok
-	msgHeaders := status.CreateHTTPMessage() + "\r\n"
+func (s *StatusCode) WriteHeaders(w io.Writer, headers headers.Headers) error {
+	msgHeaders := s.CreateHTTPMessage() + "\r\n"
 	for k, v := range headers {
 		msgHeaders += fmt.Sprintf("%s: %s\r\n", k, v)
 	}
@@ -69,5 +68,13 @@ func WriteHeaders(w io.Writer, headers headers.Headers) error {
 		return err
 	}
 
+	return nil
+}
+
+func WriteBody(w io.Writer, body []byte) error {
+	_, err := w.Write([]byte(body))
+	if err != nil {
+		return err
+	}
 	return nil
 }

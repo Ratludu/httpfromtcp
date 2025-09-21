@@ -1,19 +1,42 @@
 package server
 
 import (
+	"bytes"
 	"fmt"
-	"github.com/ratludu/httpfromtcp/internal/response"
+	"io"
 	"net"
 	"sync/atomic"
+
+	"github.com/ratludu/httpfromtcp/internal/request"
+	"github.com/ratludu/httpfromtcp/internal/response"
 )
 
 type Server struct {
 	Closed   atomic.Bool
 	Listener net.Listener
+	Handler  Handler
 	Port     int
 }
 
-func Serve(port int) (*Server, error) {
+type Handler func(w io.Writer, r *request.Request) *HandlerError
+
+type HandlerError struct {
+	StatusCode response.StatusCode
+	Message    string
+}
+
+func (h *HandlerError) Write(w io.Writer) error {
+	h.StatusCode = response.InternalServerError
+	defaultHeaders := response.GetDefaultHeaders(0)
+	err := h.StatusCode.WriteHeaders(w, defaultHeaders)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func Serve(port int, handlerFunc Handler) (*Server, error) {
 	// creates a net.listener and returns a new Server
 	// starts listening for requests using a go routine
 
@@ -25,6 +48,7 @@ func Serve(port int) (*Server, error) {
 	s := &Server{
 		Closed:   atomic.Bool{},
 		Listener: l,
+		Handler:  handlerFunc,
 		Port:     port,
 	}
 
@@ -64,10 +88,41 @@ func (s *Server) listen() {
 func (s *Server) handle(conn net.Conn) {
 
 	defer conn.Close()
-	defaultHeaders := response.GetDefaultHeaders(0)
-	err := response.WriteHeaders(conn, defaultHeaders)
+	req, err := request.RequestFromReader(conn)
 	if err != nil {
 		fmt.Println("Error:", err)
 		return
 	}
+
+	buf := new(bytes.Buffer)
+
+	herr := s.Handler(buf, req)
+	if herr != nil {
+		errorHeaders := response.GetDefaultHeaders(len(herr.Message))
+		err := herr.StatusCode.WriteHeaders(conn, errorHeaders)
+		if err != nil {
+			fmt.Println("Error:", err)
+			return
+		}
+		err = response.WriteBody(conn, []byte(herr.Message))
+		if err != nil {
+			fmt.Println("Error:", err)
+			return
+		}
+	}
+
+	defaultHeaders := response.GetDefaultHeaders(buf.Len())
+	statusOk := response.Ok
+	err = statusOk.WriteHeaders(conn, defaultHeaders)
+	if err != nil {
+		fmt.Println("Error:", err)
+		return
+	}
+
+	_, err = conn.Write(buf.Bytes())
+	if err != nil {
+		fmt.Println("Error:", err)
+		return
+	}
+
 }
