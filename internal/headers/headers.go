@@ -21,6 +21,14 @@ func NewHeaders() Headers {
 	return Headers{}
 }
 
+func (h Headers) Set(key, val string) {
+	h[key] = val
+}
+
+func (h Headers) Del(key string) {
+	delete(h, key)
+}
+
 func (h Headers) Get(key string) (int, error) {
 
 	val, ok := h[strings.ToLower(key)]

@@ -3,7 +3,6 @@ package server
 import (
 	"bytes"
 	"fmt"
-	"io"
 	"net"
 	"sync/atomic"
 
@@ -18,22 +17,11 @@ type Server struct {
 	Port     int
 }
 
-type Handler func(w io.Writer, r *request.Request) *HandlerError
+type Handler func(w *response.Writer, r *request.Request)
 
 type HandlerError struct {
 	StatusCode response.StatusCode
 	Message    string
-}
-
-func (h *HandlerError) Write(w io.Writer) error {
-	h.StatusCode = response.InternalServerError
-	defaultHeaders := response.GetDefaultHeaders(0)
-	err := h.StatusCode.WriteHeaders(w, defaultHeaders)
-	if err != nil {
-		return err
-	}
-
-	return nil
 }
 
 func Serve(port int, handlerFunc Handler) (*Server, error) {
@@ -96,30 +84,25 @@ func (s *Server) handle(conn net.Conn) {
 
 	buf := new(bytes.Buffer)
 
-	herr := s.Handler(buf, req)
-	if herr != nil {
-		errorHeaders := response.GetDefaultHeaders(len(herr.Message))
-		err := herr.StatusCode.WriteHeaders(conn, errorHeaders)
-		if err != nil {
-			fmt.Println("Error:", err)
-			return
-		}
-		err = response.WriteBody(conn, []byte(herr.Message))
-		if err != nil {
-			fmt.Println("Error:", err)
-			return
-		}
-	}
+	w := response.NewWriter(conn)
 
-	defaultHeaders := response.GetDefaultHeaders(buf.Len())
+	s.Handler(w, req)
+
+	defaultHeaders := response.GetDefaultHeaders(buf.Len(), "text/html")
 	statusOk := response.Ok
-	err = statusOk.WriteHeaders(conn, defaultHeaders)
+	err = w.WriteStatusLine(statusOk)
 	if err != nil {
 		fmt.Println("Error:", err)
 		return
 	}
 
-	_, err = conn.Write(buf.Bytes())
+	err = w.WriteHeaders(defaultHeaders)
+	if err != nil {
+		fmt.Println("Error:", err)
+		return
+	}
+
+	_, err = w.WriteBody(buf.Bytes())
 	if err != nil {
 		fmt.Println("Error:", err)
 		return

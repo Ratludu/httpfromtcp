@@ -9,6 +9,7 @@ import (
 )
 
 type StatusCode int
+type WriterState int
 
 const (
 	Ok StatusCode = iota
@@ -16,8 +17,56 @@ const (
 	InternalServerError
 )
 
-func (s StatusCode) GetCode() int {
+const (
+	StateStatusLine WriterState = iota
+	StateHeaders
+	StateBody
+)
 
+type Writer struct {
+	writer io.Writer
+	state  WriterState
+}
+
+func NewWriter(w io.Writer) *Writer {
+	return &Writer{
+		writer: w,
+		state:  StateStatusLine,
+	}
+}
+func (w *Writer) WriteStatusLine(statusCode StatusCode) error {
+	statusLine := statusCode.CreateHTTPMessage()
+	_, err := w.writer.Write([]byte(statusLine))
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (w *Writer) WriteHeaders(headers headers.Headers) error {
+
+	var msgHeaders string
+	for k, v := range headers {
+		msgHeaders += fmt.Sprintf("%s: %s\r\n", k, v)
+	}
+	msgHeaders += "\r\n"
+
+	_, err := w.writer.Write([]byte(msgHeaders))
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (w *Writer) WriteBody(p []byte) (int, error) {
+	n, err := w.writer.Write([]byte(p))
+	if err != nil {
+		return n, err
+	}
+	return n, nil
+}
+
+func (s StatusCode) GetCode() int {
 	switch s {
 	case Ok:
 		return 200
@@ -29,7 +78,6 @@ func (s StatusCode) GetCode() int {
 }
 
 func (s StatusCode) GetMessage() string {
-
 	switch s {
 	case Ok:
 		return "OK"
@@ -42,39 +90,16 @@ func (s StatusCode) GetMessage() string {
 }
 
 func (s StatusCode) CreateHTTPMessage() string {
-	return fmt.Sprintf("HTTP/1.1 %d %s", s.GetCode(), s.GetMessage())
+	return fmt.Sprintf("HTTP/1.1 %d %s\n", s.GetCode(), s.GetMessage())
 }
 
-func GetDefaultHeaders(contentLen int) headers.Headers {
+func GetDefaultHeaders(contentLen int, contentType string) headers.Headers {
 
 	header := headers.NewHeaders()
 	strContentLen := strconv.Itoa(contentLen)
 	header["content-length"] = strContentLen
 	header["connection"] = "close"
-	header["content-type"] = "text/plain"
+	header["content-type"] = contentType
 
 	return header
-}
-
-func (s *StatusCode) WriteHeaders(w io.Writer, headers headers.Headers) error {
-	msgHeaders := s.CreateHTTPMessage() + "\r\n"
-	for k, v := range headers {
-		msgHeaders += fmt.Sprintf("%s: %s\r\n", k, v)
-	}
-	msgHeaders += "\r\n"
-
-	_, err := w.Write([]byte(msgHeaders))
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func WriteBody(w io.Writer, body []byte) error {
-	_, err := w.Write([]byte(body))
-	if err != nil {
-		return err
-	}
-	return nil
 }
